@@ -1,5 +1,6 @@
-# SBCCtl
-Smart Bottle Cutter Controller
+# SBCCtl (Smart Bottle Cutter Controller)
+See [WiKi](https://github.com/mvbasov/SBCCtl/wiki) for usefull information
+
 ### Original project (Smart Bottle Cutter)
 * [Проект "Умный бутылкорез"](https://www.youtube.com/watch?v=465i-q0ZXCA)
   * [Project files](https://disk.yandex.ru/d/M581IImOExM3jw)
