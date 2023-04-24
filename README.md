@@ -13,7 +13,9 @@ This will be alternative electroics for Smart Bottle Cutter.
 
 As Mechanics I use bottle cutter from [Alexander](https://www.youtube.com/watch?v=5Byc4Kf1D5c) (reference below)
 
-To measure stripe length i develop [DIY encoder](https://www.thingiverse.com/thing:5988577)
+To measure stripe length I develop [DIY encoder](https://www.thingiverse.com/thing:5988577)
+
+To read data from guage use [Level Shifter](https://github.com/mvbasov/SBCCtl/wiki/LevelShifter)
 
 See [WiKi](https://github.com/mvbasov/SBCCtl/wiki) for usefull information
 
