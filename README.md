@@ -19,3 +19,5 @@ To read data from guage use [Level Shifter](https://github.com/mvbasov/SBCCtl/wi
 
 See [WiKi](https://github.com/mvbasov/SBCCtl/wiki) for usefull information
 
+ssd1306 library from [here](https://github.com/nopnop2002/esp-idf-ssd1306)
+
