@@ -1,8 +1,10 @@
 ### The Original project (Smart Bottle Cutter)
-* [Проект "Умный бутылкорез"](https://www.youtube.com/watch?v=465i-q0ZXCA)
+* [Проект "Умный бутылкорез"](https://www.youtube.com/watch?v=465i-q0ZXCA) Arduino Nano
   * [Project files](https://disk.yandex.ru/d/M581IImOExM3jw)
-* [UPgrade умного бутылкореза. UPgrade smart bottle cutter.](https://www.youtube.com/watch?v=ZA6ZmTGsUik)
+* [UPgrade умного бутылкореза. UPgrade smart bottle cutter.](https://www.youtube.com/watch?v=ZA6ZmTGsUik) Arduino Nano
   * [Project files (the same as previous)](https://disk.yandex.ru/d/M581IImOExM3jw)
+* [SBC and Pull прошивка.](https://www.youtube.com/watch?v=5JAZ4eqUPCo) ESP32
+  * [Project files](https://disk.yandex.ru/d/q4G4xkjaZWwRnA)
 * [Бутылкорез из подшипников, регулируемый (от Александра).](https://www.youtube.com/watch?v=owXAROaGVHI)
   * [Project fies](https://drive.google.com%2Fdrive%2Ffolders%2F17S7W58JXxoeaXaPE_QbjwrEQ2xE5hOtx%3Fusp%3Dsharing&v=owXAROaGVHI)
   * [Project files (mirror)](https://disk.yandex.ru%2Fd%2Fr-sMay45b0uj8Q&v=owXAROaGVHI)
