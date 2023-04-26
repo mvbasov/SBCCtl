@@ -29,8 +29,7 @@ int stripeLength = 123;
 void RefreshDisplay(void *arg)
 {
     while(1){
-	lineChar[0] = 0x02;
-        sprintf(&lineChar[1], "Length: %04d", stripeLength);
+        sprintf(&lineChar[0], "Length: %04d", stripeLength);
         ssd1306_display_text(&dev, 2, lineChar, strlen(lineChar), false);
         vTaskDelay(500/portTICK_PERIOD_MS);
     }
