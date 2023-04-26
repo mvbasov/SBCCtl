@@ -20,12 +20,33 @@
 
 #define tag "SBCCtl"
 
+SSD1306_t dev;
+TaskHandle_t taskDisplayHandle = NULL;
+TaskHandle_t taskCounterHandle = NULL;
+char lineChar[20];
+int stripeLength = 123;
+
+void RefreshDisplay(void *arg)
+{
+    while(1){
+	lineChar[0] = 0x02;
+        sprintf(&lineChar[1], "Length: %04d", stripeLength);
+        ssd1306_display_text(&dev, 2, lineChar, strlen(lineChar), false);
+        vTaskDelay(500/portTICK_PERIOD_MS);
+    }
+}
+
+void Counter(void *arg)
+{
+    while(1){
+	stripeLength++;
+	ESP_LOGI(tag, "Counter incremented to: %d", stripeLength);
+        vTaskDelay(5000/portTICK_PERIOD_MS);
+    }
+}
+
 void app_main(void)
 {
-	SSD1306_t dev;
-	int center, top, bottom;
-	//char lineChar[20];
-
 	ESP_LOGI(tag, "INTERFACE is i2c");
 	ESP_LOGI(tag, "CONFIG_SDA_GPIO=%d",CONFIG_SDA_GPIO);
 	ESP_LOGI(tag, "CONFIG_SCL_GPIO=%d",CONFIG_SCL_GPIO);
@@ -41,34 +62,10 @@ void app_main(void)
 	ESP_LOGI(tag, "Panel is 128x64");
 	ssd1306_init(&dev, 128, 64);
 
+	xTaskCreate(RefreshDisplay, "RefreshDisplay", 4096, NULL, 10, &taskDisplayHandle);
+	xTaskCreate(Counter, "Counter", 4096, NULL, 10, &taskCounterHandle);
+
         while (1) {
-  		ssd1306_clear_screen(&dev, false);
-		ssd1306_contrast(&dev, 0xff);
-        	ssd1306_display_text_x3(&dev, 3, "Hello", 5, false);
-        	vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-		top = 2;
-		center = 3;
-		bottom = 8;
-		ssd1306_display_text(&dev, 0, "SSD1306 128x64", 14, false);
-		ssd1306_display_text(&dev, 1, "ABCDEFGHIJKLMNOP", 16, false);
-		ssd1306_display_text(&dev, 2, "abcdefghijklmnop",16, false);
-		ssd1306_display_text(&dev, 3, "Hello World!!", 13, false);
-		ssd1306_display_text(&dev, 4, "SSD1306 128x64", 14, true);
-		ssd1306_display_text(&dev, 5, "ABCDEFGHIJKLMNOP", 16, true);
-		ssd1306_display_text(&dev, 6, "abcdefghijklmnop",16, true);
-		ssd1306_display_text(&dev, 7, "Hello World!!", 13, true);
-		vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-		// Invert
-		ssd1306_clear_screen(&dev, true);
-		ssd1306_contrast(&dev, 0xff);
-		ssd1306_display_text(&dev, center, "  Next turn!", 12, true);
-		vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-		// Fade Out
-		ssd1306_fadeout(&dev);
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
-
 }
