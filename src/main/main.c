@@ -61,6 +61,8 @@ void app_main(void)
 
 	ESP_LOGI(tag, "Panel is 128x64");
 	ssd1306_init(&dev, 128, 64);
+        ssd1306_clear_screen(&dev, false);
+        ssd1306_contrast(&dev, 0xff);
 
 	xTaskCreate(RefreshDisplay, "RefreshDisplay", 4096, NULL, 10, &taskDisplayHandle);
 	xTaskCreate(Counter, "Counter", 4096, NULL, 10, &taskCounterHandle);
