@@ -13,6 +13,10 @@
 ### SBCCtl (Smart Bottle Cutter Controller)
 This will be alternative electroics for Smart Bottle Cutter.
 
+**The project is on the early development.**
+
+
+#### General
 As Mechanics I use bottle cutter from [Alexander](https://www.youtube.com/watch?v=5Byc4Kf1D5c) (reference below)
 
 To measure stripe length I develop [DIY encoder](https://www.thingiverse.com/thing:5988577)
@@ -22,4 +26,13 @@ To read data from guage use [Level Shifter](https://github.com/mvbasov/SBCCtl/wi
 See [WiKi](https://github.com/mvbasov/SBCCtl/wiki) for usefull information
 
 ssd1306 library from [here](https://github.com/nopnop2002/esp-idf-ssd1306)
+
+#### This time implemented
+##### Reading data from calipers
+![Calippers mm negative](img/01_mm_neg_c.jpg)
+![Display mm negativee](img/02_mm_neg_d.jpg)
+
+![Calipers inches positive](img/03_in_pos_c.jpg)
+![Display inches positine](img04_in_pos_d.jpg)
+
 
