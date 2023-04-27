@@ -33,6 +33,6 @@ ssd1306 library from [here](https://github.com/nopnop2002/esp-idf-ssd1306)
 ![Display mm negativee](img/02_mm_neg_d.jpg)
 
 ![Calipers inches positive](img/03_in_pos_c.jpg)
-![Display inches positine](img04_in_pos_d.jpg)
+![Display inches positine](img/04_in_pos_d.jpg)
 
 
