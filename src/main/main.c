@@ -26,7 +26,7 @@ SSD1306_t dev;
 TaskHandle_t taskDisplayHandle = NULL;
 TaskHandle_t taskCounterHandle = NULL;
 TaskHandle_t ISR = NULL;
-static QueueHandle_t gpio_evt_queue = NULL;
+static QueueHandle_t calipers_bit_queue = NULL;
 
 char lineChar[20];
 int stripeLength = 123;
@@ -46,26 +46,28 @@ bool signPlus = true;
 
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
-	//uint32_t gpio_num = (uint32_t) arg;
-	uint32_t ll = (uint32_t) gpio_get_level(CALIPERS_DATA_PIN);
-	uint32_t cc = (uint32_t) gpio_get_level(CALIPERS_CLK_PIN);
-	if(cc==0){
-		//xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
-		xQueueSendFromISR(gpio_evt_queue, &ll, NULL);
+	uint32_t gpio_num = (uint32_t) arg;
+	switch (gpio_num) {
+		case CALIPERS_CLK_PIN:
+			bool data_bit = (bool) gpio_get_level(CALIPERS_DATA_PIN);
+			bool clk_level = (bool) gpio_get_level(CALIPERS_CLK_PIN);
+			if(!clk_level){
+				xQueueSendFromISR(calipers_bit_queue, &data_bit, NULL);
+			}
+			break;;
+		default:
 	}
 }
 
 static void readCalippersBit(void *arg){
-	//uint32_t io_num;
-	uint32_t level;
+	bool level;
 	uint16_t count=0;
 	int64_t time=0;
 	int64_t now=0;
 	bool mSign;
 	bool mUnit;
 	for(;;) {
-		//if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-		if(xQueueReceive(gpio_evt_queue, &level, portMAX_DELAY)) {
+		if(xQueueReceive(calipers_bit_queue, &level, portMAX_DELAY)) {
 			now = esp_timer_get_time();
 			if(now-time > 5000) {
 				// Debug print
@@ -83,15 +85,23 @@ static void readCalippersBit(void *arg){
 				stripeThicknessBits = 0;
 				count=0;
 			}
-			//xQueueReceive(gpio_evt_queue, &level, portMAX_DELAY);
-			if (count == 23) { 
-				mUnit = level ? true:false;
-				stripeThicknessBits = stripeThicknessBits >> 1;
-			} else if (count == 20) { 
-				mSign = level ? true:false;
-				stripeThicknessBits = stripeThicknessBits >> 1;
-			} else {
-				stripeThicknessBits = (stripeThicknessBits >> 1) | (!(bool)(level==0?0:1) << 23);
+			switch (count) {
+				case 23:
+					mUnit = level ? true:false;
+					stripeThicknessBits = stripeThicknessBits >> 1;
+					break;;
+				case 22: 
+					stripeThicknessBits = stripeThicknessBits >> 1;
+					break;;
+				case 21: 
+					stripeThicknessBits = stripeThicknessBits >> 1;
+					break;;
+				case 20: 
+					mSign = level ? true:false;
+					stripeThicknessBits = stripeThicknessBits >> 1;
+					break;;
+				default:
+					stripeThicknessBits = (stripeThicknessBits >> 1) | (!(bool)(level==0?0:1) << 23);
 			}
 			count++;
 			time = now;
@@ -147,7 +157,7 @@ void app_main(void)
 	gpio_config(&io_conf);
 
 	//create a queue to handle gpio event from isr
-	gpio_evt_queue = xQueueCreate(20, sizeof(uint32_t));
+	calipers_bit_queue = xQueueCreate(25, sizeof(bool));
 	xTaskCreate(readCalippersBit, "read_calipers_bits", 2048, NULL, 10, NULL);
 
 	//install gpio isr service
