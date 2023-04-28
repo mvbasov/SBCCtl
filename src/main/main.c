@@ -8,26 +8,24 @@
 #include "esp_timer.h"
 #include "driver/gpio.h"
 
-#include "ssd1306.h"
+#include <u8g2.h>
+#include "u8g2_esp32_hal.h"
 
-/*
- You have to set this config value with menuconfig
+// SDA - GPIO21
+#define PIN_SDA 21
+// SCL - GPIO22
+#define PIN_SCL 22
 
- for i2c
- CONFIG_MODEL
- CONFIG_SDA_GPIO
- CONFIG_SCL_GPIO
- CONFIG_RESET_GPIO
-*/
 
 #define tag "SBCCtl"
 
-SSD1306_t dev;
+TaskHandle_t taskTestDisplayHandle = NULL;
 TaskHandle_t taskDisplayHandle = NULL;
 TaskHandle_t taskCounterHandle = NULL;
 TaskHandle_t ISR = NULL;
 static QueueHandle_t calipers_bit_queue = NULL;
 
+u8g2_t u8g2;  // a structure which will contain all the data for one display
 char lineChar[20];
 int stripeLength = 123;
 uint32_t stripeThickness = 0;
@@ -109,17 +107,22 @@ static void readCalippersBit(void *arg){
 	}
 }
 
-void RefreshDisplay(void *arg)
+void RefreshDisplayU8G2(void *arg)
 {
+  //u8g2_SetFont(&u8g2, u8g2_font_ncenB14_tr);
+
 	while(1){
 		if(stripeThickness != stripeThicknessPrev) {
-			ssd1306_display_text(&dev, 1, "Thickness:", 10, false);
+			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			u8g2_DrawStr(&u8g2, 5, 12, "Thickness:");
 			if(unitMM) {
-				sprintf(&lineChar[0], "    %s%.2f mm   ", signPlus?" ":"-", stripeThickness/100.00);
+				sprintf(&lineChar[0], "%s%.2f mm   ", signPlus?" ":"-", stripeThickness/100.00);
 			} else {
-				sprintf(&lineChar[0], "    %s%.4f in   ", signPlus?" ":"-", stripeThickness*5/10000.00);
+				sprintf(&lineChar[0], "%s%.4f in   ", signPlus?" ":"-", stripeThickness*5/10000.00);
 			}
-			ssd1306_display_text(&dev, 3, lineChar, strlen(lineChar), false);
+			u8g2_SetFont(&u8g2, u8g2_font_chargen_92_mf);
+			u8g2_DrawStr(&u8g2, 0, 30, lineChar);
+			u8g2_SendBuffer(&u8g2);
 			ESP_LOGI(tag, "Thickness: %s", lineChar); // for monitor logging
 			//printf("%s%.2f\n", signPlus?"":"-", stripeThickness/100.00); // for serial plotter
 		}
@@ -137,8 +140,26 @@ void Counter(void *arg)
 	}
 }
 
+void task_test_SSD1306i2c(void* ignore) {
+	ESP_LOGI(tag, "u8g2_DrawBox");
+	u8g2_DrawBox(&u8g2, 0, 26, 80, 6);
+	u8g2_DrawFrame(&u8g2, 0, 26, 100, 6);
+
+	ESP_LOGI(tag, "u8g2_SetFont");
+	u8g2_SetFont(&u8g2, u8g2_font_ncenB14_tr);
+	ESP_LOGI(tag, "u8g2_DrawStr");
+	u8g2_DrawStr(&u8g2, 2, 17, "Hi nkolban!");
+	ESP_LOGI(tag, "u8g2_SendBuffer");
+	u8g2_SendBuffer(&u8g2);
+
+	ESP_LOGI(tag, "All done!");
+	vTaskDelete(NULL);
+}
+
+
 void app_main(void)
 {
+	/* GPIO SETUP */
 	//zero-initialize the config structure.
 	gpio_config_t io_conf = {};
 	//interrupt of rising edge
@@ -166,27 +187,36 @@ void app_main(void)
 	//hook isr handler for specific gpio pin
 	gpio_isr_handler_add(CALIPERS_CLK_PIN, gpio_isr_handler, (void*)CALIPERS_CLK_PIN);
 
-	ESP_LOGI(tag, "INTERFACE is i2c");
-	ESP_LOGI(tag, "CONFIG_SDA_GPIO=%d",CONFIG_SDA_GPIO);
-	ESP_LOGI(tag, "CONFIG_SCL_GPIO=%d",CONFIG_SCL_GPIO);
-	ESP_LOGI(tag, "CONFIG_RESET_GPIO=%d",CONFIG_RESET_GPIO);
-	i2c_master_init(&dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
+	/* OLED display init */
+	u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
+	u8g2_esp32_hal.bus.i2c.sda = PIN_SDA;
+	u8g2_esp32_hal.bus.i2c.scl = PIN_SCL;
+	u8g2_esp32_hal_init(u8g2_esp32_hal);
 
+	u8g2_Setup_ssd1306_i2c_128x32_univision_f(
+		&u8g2, U8G2_R0,
+		// u8x8_byte_sw_i2c,
+		u8g2_esp32_i2c_byte_cb,
+		u8g2_esp32_gpio_and_delay_cb);  // init u8g2 structure
+	u8x8_SetI2CAddress(&u8g2.u8x8, 0x78);
 
-#if CONFIG_FLIP
-	dev._flip = true;
-	ESP_LOGW(tag, "Flip upside down");
-#endif
+	ESP_LOGI(tag, "u8g2_InitDisplay");
+	u8g2_InitDisplay(&u8g2);// send init sequence to the display, display is in
+				// sleep mode after this,
 
-	ESP_LOGI(tag, "Panel is 128x64");
-	ssd1306_init(&dev, 128, 64);
-	ssd1306_clear_screen(&dev, false);
-	ssd1306_contrast(&dev, 0xff);
+	ESP_LOGI(tag, "u8g2_SetPowerSave");
+	u8g2_SetPowerSave(&u8g2, 0);  // wake up display
+	ESP_LOGI(tag, "u8g2_ClearBuffer");
+	u8g2_ClearBuffer(&u8g2);
 
-	xTaskCreate(RefreshDisplay, "RefreshDisplay", 8192, NULL, 10, &taskDisplayHandle);
+	/* create tasks */
+
+	//xTaskCreate(task_test_SSD1306i2c, "task_test_SSD1306i2c", 8192, NULL, 10, &taskTestDisplayHandle);
+	xTaskCreate(RefreshDisplayU8G2, "RefreshDisplayU8G2", 8192, NULL, 10, &taskDisplayHandle);
 	//xTaskCreate(Counter, "Counter", 4096, NULL, 10, &taskCounterHandle);
 
 	printf("Minimum free heap size: %"PRIu32" bytes\n", esp_get_minimum_free_heap_size());
+	vTaskDelete(NULL);
 }
 
 /*

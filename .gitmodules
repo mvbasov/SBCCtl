@@ -1,0 +1,6 @@
+[submodule "src/components/u8g2-hal-esp-idf"]
+	path = src/components/u8g2-hal-esp-idf
+	url = https://github.com/mkfrey/u8g2-hal-esp-idf.git
+[submodule "src/components/u8g2"]
+	path = src/components/u8g2
+	url = https://github.com/olikraus/u8g2.git
