@@ -29,10 +29,11 @@ u8g2_t u8g2;  // a structure which will contain all the data for one display
 char lineChar[20];
 int stripeLength = 123;
 uint32_t stripeThickness = 0;
-uint32_t stripeThicknessPrev = 0;
+uint32_t stripeThicknessPrev = -1;
 uint32_t stripeThicknessBits = 0;
 bool syncCalipers = true;
 bool unitMM = true;
+bool unitMMPrev = false;
 bool signPlus = true;
 
 #define ESP_INTR_FLAG_DEFAULT 0
@@ -109,10 +110,8 @@ static void readCalippersBit(void *arg){
 
 void RefreshDisplayU8G2(void *arg)
 {
-  //u8g2_SetFont(&u8g2, u8g2_font_ncenB14_tr);
-
 	while(1){
-		if(stripeThickness != stripeThicknessPrev) {
+		if((stripeThickness != stripeThicknessPrev) || (unitMM != unitMMPrev)) {
 			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
 			u8g2_DrawStr(&u8g2, 5, 12, "Thickness:");
 			if(unitMM) {
@@ -123,10 +122,12 @@ void RefreshDisplayU8G2(void *arg)
 			u8g2_SetFont(&u8g2, u8g2_font_chargen_92_mf);
 			u8g2_DrawStr(&u8g2, 0, 30, lineChar);
 			u8g2_SendBuffer(&u8g2);
+
 			ESP_LOGI(tag, "Thickness: %s", lineChar); // for monitor logging
 			//printf("%s%.2f\n", signPlus?"":"-", stripeThickness/100.00); // for serial plotter
 		}
 		stripeThicknessPrev = stripeThickness;
+		unitMMPrev = unitMM;
 		vTaskDelay(500/portTICK_PERIOD_MS);
 	}
 }
@@ -159,6 +160,9 @@ void task_test_SSD1306i2c(void* ignore) {
 
 void app_main(void)
 {
+	//create a queue to handle gpio event from isr
+	calipers_bit_queue = xQueueCreate(25, sizeof(bool));
+
 	/* GPIO SETUP */
 	//zero-initialize the config structure.
 	gpio_config_t io_conf = {};
@@ -177,10 +181,6 @@ void app_main(void)
 	//set as input mode
 	io_conf.mode = GPIO_MODE_INPUT;
 	gpio_config(&io_conf);
-
-	//create a queue to handle gpio event from isr
-	calipers_bit_queue = xQueueCreate(25, sizeof(bool));
-	xTaskCreate(readCalippersBit, "read_calipers_bits", 2048, NULL, 10, NULL);
 
 	//install gpio isr service
 	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
@@ -211,10 +211,19 @@ void app_main(void)
 
 	/* create tasks */
 
+	//ESP_LOGI(tag, "Start task: test SSD1306 display");
 	//xTaskCreate(task_test_SSD1306i2c, "task_test_SSD1306i2c", 8192, NULL, 10, &taskTestDisplayHandle);
-	xTaskCreate(RefreshDisplayU8G2, "RefreshDisplayU8G2", 8192, NULL, 10, &taskDisplayHandle);
+
+	//ESP_LOGI(tag, "Start task: test counter");
 	//xTaskCreate(Counter, "Counter", 4096, NULL, 10, &taskCounterHandle);
 
+	ESP_LOGI(tag, "Start task: refresh display");
+	xTaskCreate(RefreshDisplayU8G2, "RefreshDisplayU8G2", 8192, NULL, 10, &taskDisplayHandle);
+
+	ESP_LOGI(tag, "Start task: read calipers bit");
+	xTaskCreate(readCalippersBit, "read_calipers_bits", 2048, NULL, 10, NULL);
+
+	/* finish app_main task */
 	printf("Minimum free heap size: %"PRIu32" bytes\n", esp_get_minimum_free_heap_size());
 	vTaskDelete(NULL);
 }
