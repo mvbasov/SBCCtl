@@ -120,7 +120,8 @@ void RefreshDisplay(void *arg)
 				sprintf(&lineChar[0], "    %s%.4f in   ", signPlus?" ":"-", stripeThickness*5/10000.00);
 			}
 			ssd1306_display_text(&dev, 3, lineChar, strlen(lineChar), false);
-			ESP_LOGI(tag, "Thickness: %s", lineChar);
+			ESP_LOGI(tag, "Thickness: %s", lineChar); // for monitor logging
+			//printf("%s%.2f\n", signPlus?"":"-", stripeThickness/100.00); // for serial plotter
 		}
 		stripeThicknessPrev = stripeThickness;
 		vTaskDelay(500/portTICK_PERIOD_MS);
