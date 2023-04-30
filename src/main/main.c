@@ -18,6 +18,10 @@
 
 
 #define tag "SBCCtl"
+#define fillArea 24053
+#define minStripeWidth 200
+#define maxStripeWidth 1600
+
 
 TaskHandle_t taskTestDisplayHandle = NULL;
 TaskHandle_t taskDisplayHandle = NULL;
@@ -28,14 +32,24 @@ static QueueHandle_t length_enc_bits_queue = NULL;
 
 u8g2_t u8g2;  // a structure which will contain all the data for one display
 char lineChar[20];
-int32_t stripeLength = 0;
-int32_t stripeLengthPrev = -25;
-uint32_t stripeThickness = 0;
-uint32_t stripeThicknessPrev = -1;
+
+uint32_t stripeThickness = 10; // in mm/100 
+uint32_t stripeThicknessPrev = -10;
+uint32_t stripeThicknessPrevC = -10;
 uint32_t stripeThicknessBits = 0;
 bool unitMM = true;
 bool unitMMPrev = false;
 bool signPlus = true;
+
+//int32_t stripeLength = -100*1000*10; // length value in 0.1 mm
+int32_t stripeLength = 0; // length value in 0.1 mm
+int32_t stripeLengthPrev = -25;
+
+uint32_t stripeWidth = 1000; // in mm/100
+uint32_t stripeWidthPrev = 1055;
+
+uint32_t percetInfill = 100;
+uint32_t percetInfillPrev = 101;
 
 #define ESP_INTR_FLAG_DEFAULT 0
 #define CALIPERS_CLK_PIN  26
@@ -46,6 +60,10 @@ bool signPlus = true;
 #define GPIO_INPUT_PIN_SEL  (1ULL<<CALIPERS_DATA_PIN)
 #define GPIO_INPUT_PIN_INT_NEG_SEL  (1ULL<<CALIPERS_CLK_PIN)
 #define GPIO_INPUT_PIN_INT_ANY_SEL  ((1ULL<<LENGTH_ENC_PINA) | (1ULL<<LENGTH_ENC_PINB))
+
+uint32_t absSimple(int32_t value) {
+	return value > 0 ? value : (-1 * value);
+}
 
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -66,13 +84,11 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 		 * 	O - Other channel level
 		 */
 		case LENGTH_ENC_PINA:
-			char aa;
-			aa = 0<<2  | (gpio_get_level(LENGTH_ENC_PINA)<<1) | gpio_get_level(LENGTH_ENC_PINB);
+			char aa = 0<<2  | (gpio_get_level(LENGTH_ENC_PINA)<<1) | gpio_get_level(LENGTH_ENC_PINB);
 			xQueueSendFromISR(length_enc_bits_queue, &aa, NULL);
 			break;
 		case LENGTH_ENC_PINB:
-			char bb;
-			bb = 1<<2 | (gpio_get_level(LENGTH_ENC_PINB)<<1) | gpio_get_level(LENGTH_ENC_PINA);
+			char bb = 1<<2 | (gpio_get_level(LENGTH_ENC_PINB)<<1) | gpio_get_level(LENGTH_ENC_PINA);
 			xQueueSendFromISR(length_enc_bits_queue, &bb, NULL);
 			break;
 		default:
@@ -81,7 +97,7 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 
 static void readCalippersBit(void *arg){
 	bool level;
-	uint16_t count=0;
+	uint16_t bitCount=0;
 	int64_t time=0;
 	int64_t now=0;
 	bool mSign;
@@ -94,18 +110,18 @@ static void readCalippersBit(void *arg){
 				//printf("time delta %lld ", now-time);
 				//printf("bit: %d, ", level ? 0:1);
 				//printf("val:%s%ld %s", signPlus ? "+":"-",stripeThicknessBits, unitMM ? "mm":"in"); 
-				//printf("cnt: %d", count);
+				//printf("cnt: %d", bitCount);
 				//printf("\n");
 
-				if(count==24){
+				if(bitCount==24){
 					stripeThickness = stripeThicknessBits;
 					unitMM = mUnit;
 					signPlus = mSign;
 				}
 				stripeThicknessBits = 0;
-				count=0;
+				bitCount=0;
 			}
-			switch (count) {
+			switch (bitCount) {
 				case 23:
 					mUnit = level ? true:false;
 					stripeThicknessBits = stripeThicknessBits >> 1;
@@ -123,7 +139,7 @@ static void readCalippersBit(void *arg){
 				default:
 					stripeThicknessBits = (stripeThicknessBits >> 1) | (!(bool)(level==0?0:1) << 23);
 			}
-			count++;
+			bitCount++;
 			time = now;
 		}
 	}
@@ -139,13 +155,13 @@ void readLengthEncoderBits(void *ignore)
 				case 0b011:
 				case 0b101:
 				case 0b110:
-					stripeLength+=25;
+					stripeLength += 25;
 					break;
 				case 0b001:
 				case 0b010:
 				case 0b100:
 				case 0b111:
-					stripeLength-=25;
+					stripeLength -= 25;
 					break;
 				default:
 			}
@@ -153,37 +169,70 @@ void readLengthEncoderBits(void *ignore)
 	}
 
 }
+void setStripeWidth(void *ignore)
+{
+	while(1){
+		if(absSimple(stripeThickness - stripeThicknessPrevC) > 2 && stripeThickness != 0) {
+			ESP_LOGI(tag, "Diff: %ld, Prev: %ld, Cur: %ld", absSimple(stripeThickness - stripeThicknessPrevC), stripeThicknessPrevC, stripeThickness);
+			stripeWidth = (percetInfill * fillArea) / (stripeThickness * 100);
+			if(stripeWidth > maxStripeWidth) stripeWidth = maxStripeWidth;
+			if(stripeWidth < minStripeWidth) stripeWidth = minStripeWidth;
+			stripeThicknessPrevC = stripeThickness;
+		}
+		vTaskDelay(50/portTICK_PERIOD_MS);
+	}
+}
 
 void RefreshDisplayU8G2(void *arg)
 {
 	while(1){
 		if((stripeThickness != stripeThicknessPrev) || (unitMM != unitMMPrev)) {
-			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
-			u8g2_DrawStr(&u8g2, 5, 12, "Thickness:");
 			if(unitMM) {
-				sprintf(&lineChar[0], "%s%.2f mm   ", signPlus?" ":"-", stripeThickness/100.00);
+				sprintf(&lineChar[0], "%s%.2f mm  ", signPlus?" ":"-", stripeThickness/100.00);
 			} else {
-				sprintf(&lineChar[0], "%s%.4f in   ", signPlus?" ":"-", stripeThickness*5/10000.00);
+				sprintf(&lineChar[0], "%s%.4f in ", signPlus?" ":"-", stripeThickness*5/10000.00);
 			}
-			u8g2_SetFont(&u8g2, u8g2_font_chargen_92_mf);
-			u8g2_DrawStr(&u8g2, 0, 30, lineChar);
+			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			u8g2_DrawStr(&u8g2, 4, 12, lineChar);
+
 			u8g2_SendBuffer(&u8g2);
 
 			ESP_LOGI(tag, "Thickness: %s", lineChar); // for monitor logging
 			//printf("%s%.2f\n", signPlus?"":"-", stripeThickness/100.00); // for serial plotter
+			stripeThicknessPrev = stripeThickness;
 		}
-		stripeThicknessPrev = stripeThickness;
-		unitMMPrev = unitMM;
 		if(stripeLength != stripeLengthPrev) {
-			//u8g2_SetFont(&u8g2, u8g2_font_chargen_92_mf);
-			//sprintf(&lineChar[0], "%d", cc);
-			//u8g2_DrawStr(&u8g2, 10, 30, lineChar);
-			//u8g2_SendBuffer(&u8g2);
-			ESP_LOGI(tag, "Length: %ld", stripeLength);
+			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			sprintf(&lineChar[0], "%.2f m ", stripeLength/10000.0);
+			u8g2_DrawStr(&u8g2, 71, 12, lineChar);
+			u8g2_SendBuffer(&u8g2);
+			ESP_LOGI(tag, "Length: %.2f m", stripeLength/10000.0);
 			stripeLengthPrev = stripeLength;
 		}
+		if(stripeWidth != stripeWidthPrev) {
+			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			sprintf(&lineChar[0], " %.2f mm ", stripeWidth/100.0);
+			u8g2_DrawStr(&u8g2, 3, 28, lineChar);
+			u8g2_SendBuffer(&u8g2);
+			ESP_LOGI(tag, "Width: %.2f mm", stripeWidth/100.0);
+			stripeWidthPrev = stripeWidth;
+		}
 
-		vTaskDelay(500/portTICK_PERIOD_MS);
+		//percetInfill = ((stripeWidth * stripeThickness) * 100) / fillArea;
+		if(percetInfill != percetInfillPrev) {
+			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			sprintf(&lineChar[0], "%2ld %%", percetInfill);
+			u8g2_DrawStr(&u8g2, 71, 28, lineChar);
+			u8g2_SendBuffer(&u8g2);
+			ESP_LOGI(tag, "Infill: %2ld %%", percetInfill);
+			percetInfillPrev = percetInfill;
+		}
+
+		unitMMPrev = unitMM;
+		// Reset length counter if thickness equal 0 and units is inch
+		if (!unitMM && (stripeThickness == 0)) stripeLength = 0;
+
+		vTaskDelay(50/portTICK_PERIOD_MS);
 	}
 }
 
@@ -275,6 +324,11 @@ void app_main(void)
 	ESP_LOGI(tag, "u8g2_ClearBuffer");
 	u8g2_ClearBuffer(&u8g2);
 
+	u8g2_DrawRFrame(&u8g2, 0, 0, 128, 32, 3);
+	u8g2_DrawHLine(&u8g2, 0, 16, 128);
+	u8g2_DrawVLine(&u8g2, 64, 0, 32);
+	u8g2_SendBuffer(&u8g2);
+
 	/* create tasks */
 
 	//ESP_LOGI(tag, "Start task: test SSD1306 display");
@@ -291,6 +345,9 @@ void app_main(void)
 
 	ESP_LOGI(tag, "Start task: read length encoder bits");
 	xTaskCreate(readLengthEncoderBits, "read_length_encoder_bits", 2048, NULL, 10, NULL);
+
+	ESP_LOGI(tag, "Start task: set stripe width");
+	xTaskCreate(setStripeWidth, "read_length_encoder_bits", 2048, NULL, 10, NULL);
 
 	/* finish app_main task */
 	printf("Minimum free heap size: %"PRIu32" bytes\n", esp_get_minimum_free_heap_size());
