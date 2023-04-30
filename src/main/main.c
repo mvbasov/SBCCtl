@@ -24,14 +24,15 @@ TaskHandle_t taskDisplayHandle = NULL;
 TaskHandle_t taskCounterHandle = NULL;
 TaskHandle_t ISR = NULL;
 static QueueHandle_t calipers_bit_queue = NULL;
+static QueueHandle_t length_enc_bits_queue = NULL;
 
 u8g2_t u8g2;  // a structure which will contain all the data for one display
 char lineChar[20];
-int stripeLength = 123;
+int32_t stripeLength = 0;
+int32_t stripeLengthPrev = -25;
 uint32_t stripeThickness = 0;
 uint32_t stripeThicknessPrev = -1;
 uint32_t stripeThicknessBits = 0;
-bool syncCalipers = true;
 bool unitMM = true;
 bool unitMMPrev = false;
 bool signPlus = true;
@@ -39,9 +40,12 @@ bool signPlus = true;
 #define ESP_INTR_FLAG_DEFAULT 0
 #define CALIPERS_CLK_PIN  26
 #define CALIPERS_DATA_PIN  27
+#define LENGTH_ENC_PINA  33
+#define LENGTH_ENC_PINB  32
 
-//#define GPIO_INPUT_PIN_SEL  ((1ULL<<CALIPERS_CLK_PIN) | (1ULL<<CALIPERS_DATA_PIN))
-#define GPIO_INPUT_PIN_SEL  (1ULL<<CALIPERS_CLK_PIN)
+#define GPIO_INPUT_PIN_SEL  (1ULL<<CALIPERS_DATA_PIN)
+#define GPIO_INPUT_PIN_INT_NEG_SEL  (1ULL<<CALIPERS_CLK_PIN)
+#define GPIO_INPUT_PIN_INT_ANY_SEL  ((1ULL<<LENGTH_ENC_PINA) | (1ULL<<LENGTH_ENC_PINB))
 
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -53,7 +57,24 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 			if(!clk_level){
 				xQueueSendFromISR(calipers_bit_queue, &data_bit, NULL);
 			}
-			break;;
+			break;
+		/*
+		 * Length encoder queue data structure:
+		 * 	0bSLO
+		 * 	S - The source of interrupt (0 - A channel, 1 - B channel)
+		 * 	L - Interrupt generated channel level
+		 * 	O - Other channel level
+		 */
+		case LENGTH_ENC_PINA:
+			char aa;
+			aa = 0<<2  | (gpio_get_level(LENGTH_ENC_PINA)<<1) | gpio_get_level(LENGTH_ENC_PINB);
+			xQueueSendFromISR(length_enc_bits_queue, &aa, NULL);
+			break;
+		case LENGTH_ENC_PINB:
+			char bb;
+			bb = 1<<2 | (gpio_get_level(LENGTH_ENC_PINB)<<1) | gpio_get_level(LENGTH_ENC_PINA);
+			xQueueSendFromISR(length_enc_bits_queue, &bb, NULL);
+			break;
 		default:
 	}
 }
@@ -108,6 +129,31 @@ static void readCalippersBit(void *arg){
 	}
 }
 
+void readLengthEncoderBits(void *ignore)
+{
+	for(;;) {
+		char cc;
+		if(xQueueReceive(length_enc_bits_queue, &cc, portMAX_DELAY)) {
+			switch(cc) {
+				case 0b000:
+				case 0b011:
+				case 0b101:
+				case 0b110:
+					stripeLength+=25;
+					break;
+				case 0b001:
+				case 0b010:
+				case 0b100:
+				case 0b111:
+					stripeLength-=25;
+					break;
+				default:
+			}
+		}
+	}
+
+}
+
 void RefreshDisplayU8G2(void *arg)
 {
 	while(1){
@@ -128,6 +174,15 @@ void RefreshDisplayU8G2(void *arg)
 		}
 		stripeThicknessPrev = stripeThickness;
 		unitMMPrev = unitMM;
+		if(stripeLength != stripeLengthPrev) {
+			//u8g2_SetFont(&u8g2, u8g2_font_chargen_92_mf);
+			//sprintf(&lineChar[0], "%d", cc);
+			//u8g2_DrawStr(&u8g2, 10, 30, lineChar);
+			//u8g2_SendBuffer(&u8g2);
+			ESP_LOGI(tag, "Length: %ld", stripeLength);
+			stripeLengthPrev = stripeLength;
+		}
+
 		vTaskDelay(500/portTICK_PERIOD_MS);
 	}
 }
@@ -136,7 +191,7 @@ void Counter(void *arg)
 {
 	while(1){
 		stripeLength++;
-		ESP_LOGI(tag, "Counter incremented to: %d", stripeLength);
+		ESP_LOGI(tag, "Counter incremented to: %ld", stripeLength);
 		vTaskDelay(5000/portTICK_PERIOD_MS);
 	}
 }
@@ -162,6 +217,7 @@ void app_main(void)
 {
 	//create a queue to handle gpio event from isr
 	calipers_bit_queue = xQueueCreate(25, sizeof(bool));
+	length_enc_bits_queue = xQueueCreate(10, sizeof(char));
 
 	/* GPIO SETUP */
 	//zero-initialize the config structure.
@@ -169,7 +225,15 @@ void app_main(void)
 	//interrupt of rising edge
 	io_conf.intr_type = GPIO_INTR_NEGEDGE;
 	//bit mask of the pins
-	io_conf.pin_bit_mask = (1ULL<<CALIPERS_CLK_PIN);
+	io_conf.pin_bit_mask = GPIO_INPUT_PIN_INT_NEG_SEL;
+	//set as input mode
+	io_conf.mode = GPIO_MODE_INPUT;
+	gpio_config(&io_conf);
+
+	//interrupt of both edge
+	io_conf.intr_type = GPIO_INTR_ANYEDGE;
+	//bit mask of the pins
+	io_conf.pin_bit_mask = GPIO_INPUT_PIN_INT_ANY_SEL;
 	//set as input mode
 	io_conf.mode = GPIO_MODE_INPUT;
 	gpio_config(&io_conf);
@@ -177,7 +241,7 @@ void app_main(void)
 	//interrupt disabled
 	io_conf.intr_type = GPIO_INTR_DISABLE;
 	//bit mask of the pins
-	io_conf.pin_bit_mask = (1ULL<<CALIPERS_DATA_PIN);
+	io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
 	//set as input mode
 	io_conf.mode = GPIO_MODE_INPUT;
 	gpio_config(&io_conf);
@@ -186,6 +250,8 @@ void app_main(void)
 	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 	//hook isr handler for specific gpio pin
 	gpio_isr_handler_add(CALIPERS_CLK_PIN, gpio_isr_handler, (void*)CALIPERS_CLK_PIN);
+	gpio_isr_handler_add(LENGTH_ENC_PINA, gpio_isr_handler, (void*)LENGTH_ENC_PINA);
+	gpio_isr_handler_add(LENGTH_ENC_PINB, gpio_isr_handler, (void*)LENGTH_ENC_PINB);
 
 	/* OLED display init */
 	u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
@@ -220,8 +286,11 @@ void app_main(void)
 	ESP_LOGI(tag, "Start task: refresh display");
 	xTaskCreate(RefreshDisplayU8G2, "RefreshDisplayU8G2", 8192, NULL, 10, &taskDisplayHandle);
 
-	ESP_LOGI(tag, "Start task: read calipers bit");
+	ESP_LOGI(tag, "Start task: read calipers bits");
 	xTaskCreate(readCalippersBit, "read_calipers_bits", 2048, NULL, 10, NULL);
+
+	ESP_LOGI(tag, "Start task: read length encoder bits");
+	xTaskCreate(readLengthEncoderBits, "read_length_encoder_bits", 2048, NULL, 10, NULL);
 
 	/* finish app_main task */
 	printf("Minimum free heap size: %"PRIu32" bytes\n", esp_get_minimum_free_heap_size());
