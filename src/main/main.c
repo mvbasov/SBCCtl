@@ -292,6 +292,8 @@ void app_main(void)
 	io_conf.pin_bit_mask = GPIO_INPUT_PIN_INT_ANY_SEL;
 	//set as input mode
 	io_conf.mode = GPIO_MODE_INPUT;
+	//enable pull-up mode
+	io_conf.pull_up_en = 1;
 	gpio_config(&io_conf);
 
 	//interrupt disabled
