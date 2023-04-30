@@ -189,11 +189,18 @@ void RefreshDisplayU8G2(void *arg)
 		if((stripeThickness != stripeThicknessPrev) || (unitMM != unitMMPrev)) {
 			if(unitMM) {
 				sprintf(&lineChar[0], "%s%.2f mm  ", signPlus?" ":"-", stripeThickness/100.00);
+				u8g2_SetDrawColor(&u8g2, 0);
+				u8g2_DrawBox(&u8g2, 0, 0, 64, 16);
+				u8g2_SetDrawColor(&u8g2, 1);
+				u8g2_DrawFrame(&u8g2, 0, 0, 65, 17);
 			} else {
-				sprintf(&lineChar[0], "%s%.4f in ", signPlus?" ":"-", stripeThickness*5/10000.00);
+				sprintf(&lineChar[0], "%s%.4fin ", signPlus?" ":"-", stripeThickness*5/10000.00);
+				u8g2_DrawBox(&u8g2, 0, 0, 64, 16);
+				u8g2_SetDrawColor(&u8g2, 0);
 			}
 			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
 			u8g2_DrawStr(&u8g2, 4, 12, lineChar);
+			u8g2_SetDrawColor(&u8g2, 1);
 
 			u8g2_SendBuffer(&u8g2);
 
@@ -324,7 +331,8 @@ void app_main(void)
 	ESP_LOGI(tag, "u8g2_ClearBuffer");
 	u8g2_ClearBuffer(&u8g2);
 
-	u8g2_DrawRFrame(&u8g2, 0, 0, 128, 32, 3);
+	//u8g2_DrawRFrame(&u8g2, 0, 0, 128, 32, 3);
+	u8g2_DrawFrame(&u8g2, 0, 0, 128, 32);
 	u8g2_DrawHLine(&u8g2, 0, 16, 128);
 	u8g2_DrawVLine(&u8g2, 64, 0, 32);
 	u8g2_SendBuffer(&u8g2);
