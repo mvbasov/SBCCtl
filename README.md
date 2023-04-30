@@ -28,6 +28,13 @@ See [WiKi](https://github.com/mvbasov/SBCCtl/wiki) for usefull information
 ssd1306 library from [here](https://github.com/nopnop2002/esp-idf-ssd1306)
 
 #### This time implemented
+- Reading data from calipers
+- Reading data from stripe length [sensor](https://www.thingiverse.com/thing:5988577)
+- Draft for set stripe width algorithm
+
+##### UI (early development)
+![UI portotype v0.0.5](img/05_UI_005.jpg)
+
 ##### Reading data from calipers
 ![Calippers mm negative](img/01_mm_neg_c.jpg)
 ![Display mm negativee](img/02_mm_neg_d.jpg)
