@@ -188,18 +188,20 @@ void RefreshDisplayU8G2(void *arg)
 	while(1){
 		if((stripeThickness != stripeThicknessPrev) || (unitMM != unitMMPrev)) {
 			if(unitMM) {
-				sprintf(&lineChar[0], "%s%.2f mm  ", signPlus?" ":"-", stripeThickness/100.00);
+				sprintf(&lineChar[0], "%s%.2f mm", signPlus?" ":"-", stripeThickness/100.00);
 				u8g2_SetDrawColor(&u8g2, 0);
-				u8g2_DrawBox(&u8g2, 0, 0, 64, 16);
+				u8g2_DrawRBox(&u8g2, 1, 1, 62, 30, 5);
 				u8g2_SetDrawColor(&u8g2, 1);
-				u8g2_DrawFrame(&u8g2, 0, 0, 65, 17);
+				//u8g2_DrawrFrame(&u8g2, 0, 0, 65, 33);
 			} else {
-				sprintf(&lineChar[0], "%s%.4fin ", signPlus?" ":"-", stripeThickness*5/10000.00);
-				u8g2_DrawBox(&u8g2, 0, 0, 64, 16);
+				sprintf(&lineChar[0], "%s%.4f in", signPlus?" ":"-", stripeThickness*5/10000.00);
+				u8g2_DrawRBox(&u8g2, 0, 0, 64, 32, 5);
 				u8g2_SetDrawColor(&u8g2, 0);
 			}
-			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
-			u8g2_DrawStr(&u8g2, 4, 12, lineChar);
+			//u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			//u8g2_SetFont(&u8g2, u8g2_font_freedoomr10_mu);
+			u8g2_SetFont(&u8g2, u8g2_font_balthasar_titling_nbp_tr);
+			u8g2_DrawStr(&u8g2, 4, 24, lineChar);
 			u8g2_SetDrawColor(&u8g2, 1);
 
 			u8g2_SendBuffer(&u8g2);
@@ -209,17 +211,23 @@ void RefreshDisplayU8G2(void *arg)
 			stripeThicknessPrev = stripeThickness;
 		}
 		if(stripeLength != stripeLengthPrev) {
-			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			//u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			//u8g2_SetFont(&u8g2, u8g2_font_freedoomr10_mu);
+			u8g2_SetFont(&u8g2, u8g2_font_balthasar_titling_nbp_tr);
 			sprintf(&lineChar[0], "%.2f m ", stripeLength/10000.0);
-			u8g2_DrawStr(&u8g2, 71, 12, lineChar);
+			u8g2_DrawStr(&u8g2, 71, 24, lineChar);
 			u8g2_SendBuffer(&u8g2);
 			ESP_LOGI(tag, "Length: %.2f m", stripeLength/10000.0);
 			stripeLengthPrev = stripeLength;
 		}
 		if(stripeWidth != stripeWidthPrev) {
-			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			u8g2_SetDrawColor(&u8g2, 0);
+			u8g2_DrawRBox(&u8g2, 1, 33, 62, 30, 5);
+			u8g2_SetDrawColor(&u8g2, 1);
+			//u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			u8g2_SetFont(&u8g2, u8g2_font_balthasar_titling_nbp_tr);
 			sprintf(&lineChar[0], " %.2f mm ", stripeWidth/100.0);
-			u8g2_DrawStr(&u8g2, 3, 28, lineChar);
+			u8g2_DrawStr(&u8g2, 3, 55, lineChar);
 			u8g2_SendBuffer(&u8g2);
 			ESP_LOGI(tag, "Width: %.2f mm", stripeWidth/100.0);
 			stripeWidthPrev = stripeWidth;
@@ -227,9 +235,10 @@ void RefreshDisplayU8G2(void *arg)
 
 		//percetInfill = ((stripeWidth * stripeThickness) * 100) / fillArea;
 		if(percetInfill != percetInfillPrev) {
-			u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			//u8g2_SetFont(&u8g2, u8g2_font_6x10_mf);
+			u8g2_SetFont(&u8g2, u8g2_font_balthasar_titling_nbp_tr);
 			sprintf(&lineChar[0], "%2ld %%", percetInfill);
-			u8g2_DrawStr(&u8g2, 71, 28, lineChar);
+			u8g2_DrawStr(&u8g2, 78, 55, lineChar);
 			u8g2_SendBuffer(&u8g2);
 			ESP_LOGI(tag, "Infill: %2ld %%", percetInfill);
 			percetInfillPrev = percetInfill;
@@ -317,7 +326,8 @@ void app_main(void)
 	u8g2_esp32_hal.bus.i2c.scl = PIN_SCL;
 	u8g2_esp32_hal_init(u8g2_esp32_hal);
 
-	u8g2_Setup_ssd1306_i2c_128x32_univision_f(
+	//u8g2_Setup_ssd1306_i2c_128x32_univision_f(
+	u8g2_Setup_ssd1306_i2c_128x64_noname_f(
 		&u8g2, U8G2_R0,
 		// u8x8_byte_sw_i2c,
 		u8g2_esp32_i2c_byte_cb,
@@ -333,10 +343,13 @@ void app_main(void)
 	ESP_LOGI(tag, "u8g2_ClearBuffer");
 	u8g2_ClearBuffer(&u8g2);
 
-	//u8g2_DrawRFrame(&u8g2, 0, 0, 128, 32, 3);
-	u8g2_DrawFrame(&u8g2, 0, 0, 128, 32);
-	u8g2_DrawHLine(&u8g2, 0, 16, 128);
-	u8g2_DrawVLine(&u8g2, 64, 0, 32);
+	//u8g2_DrawRFrame(&u8g2, 0, 0, 128, 64, 3);
+	u8g2_DrawRFrame(&u8g2, 0, 0, 64, 32, 5);
+	u8g2_DrawRFrame(&u8g2, 64, 0, 64, 32, 5);
+	u8g2_DrawRFrame(&u8g2, 0, 32, 64, 32, 5);
+	u8g2_DrawRFrame(&u8g2, 64, 32, 64, 32, 5);
+	//u8g2_DrawHLine(&u8g2, 0, 32, 128);
+	//u8g2_DrawVLine(&u8g2, 64, 0, 64);
 	u8g2_SendBuffer(&u8g2);
 
 	/* create tasks */
